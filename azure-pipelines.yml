@@ -1,0 +1,100 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: 'azure-arm-connection'
+
+  resourceGroup: 'rg-aks-cicd'
+
+  aksCluster: 'aks-cicd-lab'
+
+  acrName: 'acrcicdx0unjk'
+
+  acrLoginServer: 'acrcicdx0unjk.azurecr.io'
+
+  imageName: 'azure-cicd-app'
+
+  tag: '$(Build.BuildId)'
+
+stages:
+
+# STAGE 1 - BUILD AND PUSH
+
+- stage: Build
+  displayName: Build and Push Docker Image
+
+  jobs:
+  - job: DockerBuild
+
+    steps:
+
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: Build and Push to ACR
+
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: bash
+        scriptLocation: inlineScript
+
+        inlineScript: |
+
+          az acr login --name $(acrName)
+
+          docker build \
+            -t $(acrLoginServer)/$(imageName):$(tag) \
+            ./app
+
+          docker push \
+            $(acrLoginServer)/$(imageName):$(tag)
+
+          echo "Docker image pushed successfully"
+
+# STAGE 2 - DEPLOY TO AKS
+
+- stage: Deploy
+  displayName: Deploy Application to AKS
+
+  dependsOn: Build
+
+  jobs:
+  - job: KubernetesDeploy
+
+    steps:
+
+    - checkout: self
+
+    - task: AzureCLI@2
+      displayName: Deploy to Kubernetes
+
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: bash
+        scriptLocation: inlineScript
+
+        inlineScript: |
+
+          az aks get-credentials \
+            --resource-group $(resourceGroup) \
+            --name $(aksCluster) \
+            --overwrite-existing
+
+          kubectl apply -f k8s/deployment.yaml
+
+          kubectl set image \
+            deployment/azure-cicd-app \
+            azure-cicd-app=$(acrLoginServer)/$(imageName):$(tag)
+
+          kubectl apply -f k8s/service.yaml
+
+          kubectl rollout status \
+            deployment/azure-cicd-app \
+            --timeout=180s
+
+          kubectl get pods
+
+          kubectl get services
