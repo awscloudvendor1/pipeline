@@ -11,9 +11,9 @@ variables:
 
   aksCluster: 'aks-cicd-lab'
 
-  acrName: 'acrcicdx0unjk'
+  acrName: 'acrcicdvvp57x'
 
-  acrLoginServer: 'acrcicdx0unjk.azurecr.io'
+  acrLoginServer: 'acrcicdvvp57x.azurecr.io'
 
   imageName: 'azure-cicd-app'
 
